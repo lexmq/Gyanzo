@@ -4,7 +4,6 @@ import { stat, unlink } from 'fs/promises';
 import { createReadStream } from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
-
 /**
  * Streams the stored PDF binary.
  *
@@ -39,6 +38,27 @@ export async function GET(request: Request, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: 'notFound' }, { status: 404 });
     }
 
+    const asciiName = pdf.name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+    const disposition = `${download ? 'attachment' : 'inline'}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(pdf.name)}`;
+    const baseHeaders: Record<string, string> = {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': disposition,
+      'Cache-Control': 'private, no-store',
+    };
+
+    /* Vercel Blob backend — fetch the bytes server-side and re-stream them
+       so the Blob URL stays hidden and the email check still gates access. */
+    if (pdf.blobUrl) {
+      const upstream = await fetch(pdf.blobUrl);
+      if (!upstream.ok || !upstream.body) {
+        return NextResponse.json({ ok: false, error: 'notFound' }, { status: 404 });
+      }
+      const headers = new Headers(baseHeaders);
+      const len = upstream.headers.get('content-length');
+      if (len) headers.set('Content-Length', len);
+      return new Response(upstream.body, { status: 200, headers });
+    }
+
     const filePath = path.join(UPLOAD_DIR, pdf.storedAs);
     let size: number;
     try {
@@ -49,13 +69,8 @@ export async function GET(request: Request, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: 'notFound' }, { status: 404 });
     }
 
-    const asciiName = pdf.name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
-    const headers = new Headers({
-      'Content-Type': 'application/pdf',
-      'Content-Length': String(size),
-      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(pdf.name)}`,
-      'Cache-Control': 'private, no-store',
-    });
+    const headers = new Headers(baseHeaders);
+    headers.set('Content-Length', String(size));
 
     const nodeStream = createReadStream(filePath);
     const webStream = Readable.toWeb(

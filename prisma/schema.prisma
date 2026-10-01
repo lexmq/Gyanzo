@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -63,6 +63,7 @@ model Pdf {
   pages       Int      @default(0)
   status      String   @default("ready")
   storedAs    String
+  blobUrl     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

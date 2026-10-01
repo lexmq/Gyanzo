@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { loadPdfBytes } from '@/lib/pdf-store';
 import ZAI from 'z-ai-web-dev-sdk';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import {  } from 'fs/promises';
 import { extractText, getDocumentProxy } from 'unpdf';
 
 /**
@@ -19,10 +19,12 @@ import { extractText, getDocumentProxy } from 'unpdf';
  */
 
 export const runtime = 'nodejs';
+
+/* AI generation can take well over the 10 s default — Vercel Hobby cap. */
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
 
 const STYLES = ['apa', 'mla', 'chicago', 'harvard', 'ieee'] as const;
 type StyleId = (typeof STYLES)[number];
@@ -75,7 +77,7 @@ async function extractPdfText(
   row: { name: string; storedAs: string }
 ): Promise<string | null> {
   try {
-    const buf = await readFile(path.join(UPLOAD_DIR, row.storedAs));
+    const buf = await loadPdfBytes(row);
     const doc = await getDocumentProxy(new Uint8Array(buf));
     const { text } = await extractText(doc, { mergePages: true });
     const clean = String(text).replace(/\s+/g, ' ').trim();
@@ -544,7 +546,7 @@ export async function POST(request: Request) {
     /* Resolve the PDF (must belong to this user) */
     const pdf = await db.pdf.findFirst({
       where: { id: pdfId, userEmail: email },
-      select: { name: true, storedAs: true, createdAt: true },
+      select: { name: true, storedAs: true, blobUrl: true, createdAt: true },
     });
     if (!pdf) {
       return NextResponse.json(

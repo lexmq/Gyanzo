@@ -28,7 +28,7 @@ languages, with a personalized dashboard that tracks your progress.
 | ---------- | --------------------------------------------- |
 | Framework  | Next.js 16 (App Router) + TypeScript          |
 | Styling    | Tailwind CSS 4 + shadcn/ui (New York) + Lucide |
-| Database   | SQLite via Prisma ORM                         |
+| Database   | PostgreSQL via Prisma ORM (Neon/Vercel Postgres) |
 | Auth       | NextAuth.js v4 (credentials + Google OAuth)   |
 | AI         | z-ai-web-dev-sdk (LLM, VLM, TTS, ASR, image)  |
 | Runtime    | Bun                                           |
@@ -74,7 +74,7 @@ See `.env.example`. Required keys:
 
 | Variable              | Description                              |
 | --------------------- | ---------------------------------------- |
-| `DATABASE_URL`        | SQLite file URL, e.g. `file:../db/app.db` |
+| `DATABASE_URL`        | Postgres connection string (Neon/Vercel Postgres) |
 | `SMTP_HOST`           | SMTP server host (email verification)    |
 | `SMTP_PORT`           | SMTP server port                         |
 | `SMTP_USER`           | SMTP username                            |
@@ -82,6 +82,23 @@ See `.env.example`. Required keys:
 | `SMTP_FROM`           | From-address for outgoing emails         |
 | `GOOGLE_CLIENT_ID`    | Google OAuth client ID                   |
 | `GOOGLE_CLIENT_SECRET`| Google OAuth client secret               |
+| `ZAI_BASE_URL` / `ZAI_API_KEY` | z-ai-web-dev-sdk endpoint + key (plus `ZAI_CHAT_ID`, `ZAI_TOKEN`, `ZAI_USER_ID`) |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob store token (PDF storage on serverless) |
+| `NEXT_PUBLIC_DISABLE_SOCKET` | Set `1` on serverless hosts — bell falls back to polling |
+
+## Deploy to Vercel
+
+The app is serverless-ready: PostgreSQL database, Vercel Blob for PDF
+storage, polling fallback for notifications and build-time SDK config.
+
+1. Create a Postgres database (Vercel Postgres, Neon or Supabase) and run
+   `npx prisma db push` against it once.
+2. Import this repo in Vercel — the build runs
+   `write-zai-config.mjs && next build` automatically.
+3. Set the environment variables listed above (Vercel injects
+   `BLOB_READ_WRITE_TOKEN` after you create a Blob store).
+4. Add `https://<your-app>.vercel.app/api/auth/google/callback` to the
+   authorized redirect URIs of your Google OAuth client.
 
 ## Scripts
 

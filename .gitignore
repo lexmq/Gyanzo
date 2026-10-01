@@ -42,6 +42,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 local-*
+/.z-ai-config
 .claude
 .z-ai-config
 *.log
@@ -74,7 +75,8 @@ worklog.md
 
 # --- dev tooling & sandbox infrastructure (kept locally, never pushed) ---
 /.zscripts/
-/scripts/
+/scripts/*
+!/scripts/write-zai-config.mjs
 /tests/
 /examples/
 Caddyfile

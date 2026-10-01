@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { pushNotification } from '@/lib/notify';
+import { blobEnabled, storePdfFile, removePdfFile } from '@/lib/pdf-store';
 import {
   mkdir,
   open,
@@ -9,6 +10,7 @@ import {
   stat,
   unlink,
 } from 'fs/promises';
+import os from 'os';
 import { createWriteStream } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
@@ -38,7 +40,9 @@ import busboy from 'busboy';
 export const runtime = 'nodejs';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_BYTES = 500 * 1024 * 1024; // 500 MB
+/** Serverless platforms cap request bodies (~4.5 MB); self-hosted disk mode
+ *  keeps the original 500 MB streaming limit. */
+const MAX_BYTES = blobEnabled ? 4 * 1024 * 1024 : 500 * 1024 * 1024;
 /** Below this size pdf-lib parses the file for an exact page count. */
 const PAGE_COUNT_LIMIT = 50 * 1024 * 1024;
 const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
@@ -81,10 +85,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid' }, { status: 400 });
   }
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  // Blob mode: Vercel's filesystem is read-only — stage the upload in /tmp.
+  const tmpDir = blobEnabled ? os.tmpdir() : UPLOAD_DIR;
+  if (!blobEnabled) await mkdir(UPLOAD_DIR, { recursive: true });
   // Everything lands in a temp file first; it is renamed to its final
   // <uuid>.pdf name only after every validation passed.
-  const tempPath = path.join(UPLOAD_DIR, `tmp-${randomUUID()}.part`);
+  const tempPath = path.join(tmpDir, `tmp-${randomUUID()}.part`);
 
   /** Best-effort delete that never masks the real outcome. */
   const remove = async (p: string) => {
@@ -198,8 +204,14 @@ export async function POST(request: Request) {
     }
 
     const storedAs = `${randomUUID()}.pdf`;
-    const finalPath = path.join(UPLOAD_DIR, storedAs);
-    await rename(tempPath, finalPath);
+    let blobUrl: string | null = null;
+    if (blobEnabled) {
+      const buf = await readFile(tempPath);
+      blobUrl = await storePdfFile(storedAs, buf);
+      await remove(tempPath);
+    } else {
+      await rename(tempPath, path.join(UPLOAD_DIR, storedAs));
+    }
 
     try {
       const pdf = await db.pdf.create({
@@ -211,6 +223,7 @@ export async function POST(request: Request) {
           pages,
           status: 'ready',
           storedAs,
+          blobUrl,
         },
       });
 
@@ -240,7 +253,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       // Row failed — don't leave an orphaned binary behind.
-      await remove(finalPath);
+      await removePdfFile({ storedAs, blobUrl });
       throw error;
     }
   } catch (error) {

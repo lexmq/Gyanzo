@@ -73,6 +73,9 @@ export function useNotifications(email: string | null) {
   /* ── Real-time socket (per-email singleton connection) ──────── */
   useEffect(() => {
     if (!email || typeof window === 'undefined') return;
+    // Serverless deploys (e.g. Vercel) have no long-lived socket service —
+    // the focus/interval polling below keeps the bell fresh there.
+    if (process.env.NEXT_PUBLIC_DISABLE_SOCKET === '1') return;
 
     // Never use the port in the URL — always XTransformPort (Caddy gateway).
     // The path MUST stay '/' for the same reason.

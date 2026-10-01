@@ -14,6 +14,9 @@ import { extractPdfSource } from '@/lib/pdf-text';
  */
 
 export const runtime = 'nodejs';
+
+/* AI generation can take well over the 10 s default — Vercel Hobby cap. */
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -356,7 +359,7 @@ export async function POST(request: Request) {
           where: { userEmail: email, subjectName: subject.name },
           orderBy: { createdAt: 'desc' },
           take: 5,
-          select: { name: true, storedAs: true },
+          select: { name: true, storedAs: true, blobUrl: true },
         });
         if (docs.length > 0) {
           const extracted = await extractPdfSource(docs, {

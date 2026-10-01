@@ -1,4 +1,4 @@
-import { readFile } from 'fs/promises';
+import { loadPdfBytes } from '@/lib/pdf-store';
 import path from 'path';
 import { extractText, getDocumentProxy } from 'unpdf';
 
@@ -47,7 +47,7 @@ export async function extractPdfSource(
   for (const p of rows) {
     if (usedChars >= totalChars) break;
     try {
-      const buf = await readFile(path.join(UPLOAD_DIR, p.storedAs));
+      const buf = await loadPdfBytes(p);
       const doc = await getDocumentProxy(new Uint8Array(buf));
       const { text } = await extractText(doc, { mergePages: true });
       const clean = String(text).replace(/\s+/g, ' ').trim();

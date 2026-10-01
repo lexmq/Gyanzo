@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
+import { loadPdfBytes } from '@/lib/pdf-store';
 import ZAI from 'z-ai-web-dev-sdk';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import {  } from 'fs/promises';
 import { extractText, getDocumentProxy } from 'unpdf';
 
 /**
@@ -31,10 +31,9 @@ import { extractText, getDocumentProxy } from 'unpdf';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600;
+export const maxDuration = 60;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
 
 const MAX_PAGE_CHARS = 4000; // page text fed to the model
 const MAX_PAGES = 300; // hard safety cap on summarised pages
@@ -101,7 +100,7 @@ export async function GET(
   const pdf = await db.pdf
     .findFirst({
       where: { id, userEmail: email },
-      select: { id: true, name: true, storedAs: true },
+      select: { id: true, name: true, storedAs: true, blobUrl: true },
     })
     .catch(() => null);
   if (!pdf) {
@@ -136,7 +135,7 @@ export async function GET(
         /* ── The stored binary must exist and be a readable PDF ── */
         let buf: Buffer;
         try {
-          buf = await readFile(path.join(UPLOAD_DIR, pdf.storedAs));
+          buf = await loadPdfBytes(pdf);
         } catch (err) {
           console.warn(
             '[pdfs/summary] stored binary unreadable:',

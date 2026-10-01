@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { loadPdfBytes } from '@/lib/pdf-store';
 import ZAI from 'z-ai-web-dev-sdk';
-import { readFile } from 'fs/promises';
-import path from 'path';
+import {  } from 'fs/promises';
 import { extractText, getDocumentProxy } from 'unpdf';
 
 /**
@@ -21,10 +21,12 @@ import { extractText, getDocumentProxy } from 'unpdf';
  */
 
 export const runtime = 'nodejs';
+
+/* AI generation can take well over the 10 s default — Vercel Hobby cap. */
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
 
 const MAX_MESSAGE_CHARS = 4000;
 const HISTORY_TURNS = 12; // previous messages sent to the model
@@ -80,7 +82,7 @@ async function buildDocumentContext(
       where: { userEmail: email, subjectName },
       orderBy: { createdAt: 'desc' },
       take: MAX_CONTEXT_DOCS,
-      select: { name: true, storedAs: true },
+      select: { name: true, storedAs: true, blobUrl: true },
     });
   } catch (error) {
     console.error('[chat/POST] pdf lookup failed:', error);
@@ -92,7 +94,7 @@ async function buildDocumentContext(
   for (const p of pdfs) {
     if (used >= TOTAL_CONTEXT_CHARS) break;
     try {
-      const buf = await readFile(path.join(UPLOAD_DIR, p.storedAs));
+      const buf = await loadPdfBytes(p);
       const doc = await getDocumentProxy(new Uint8Array(buf));
       const { text } = await extractText(doc, { mergePages: true });
       const clean = String(text)

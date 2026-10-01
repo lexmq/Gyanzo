@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { unlink } from 'fs/promises';
-import path from 'path';
+import { removePdfFile } from '@/lib/pdf-store';
 
 /**
  * Single PDF — rename or delete.
@@ -16,7 +15,6 @@ import path from 'path';
 export const runtime = 'nodejs';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -89,12 +87,8 @@ export async function DELETE(request: Request, ctx: Ctx) {
       .deleteMany({ where: { pdfId: existing.id } })
       .catch(() => null);
 
-    // Remove the binary — a failure here shouldn't fail the request.
-    try {
-      await unlink(path.join(UPLOAD_DIR, existing.storedAs));
-    } catch (fsError) {
-      console.warn('[pdfs/DELETE] could not remove file', existing.storedAs, fsError);
-    }
+    // Remove the binary (Blob or disk) — a failure here shouldn't fail the request.
+    await removePdfFile(existing);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
