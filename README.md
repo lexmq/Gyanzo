@@ -28,8 +28,8 @@ languages, with a personalized dashboard that tracks your progress.
 | ---------- | --------------------------------------------- |
 | Framework  | Next.js 16 (App Router) + TypeScript          |
 | Styling    | Tailwind CSS 4 + shadcn/ui (New York) + Lucide |
-| Database   | PostgreSQL via Prisma ORM (Neon/Vercel Postgres) |
-| Auth       | NextAuth.js v4 (credentials + Google OAuth)   |
+| Database   | PostgreSQL via Prisma ORM (Supabase)             |
+| Auth       | Custom session (email-code + Google OAuth)    |
 | AI         | z-ai-web-dev-sdk (LLM, VLM, TTS, ASR, image)  |
 | Runtime    | Bun                                           |
 
@@ -74,7 +74,8 @@ See `.env.example`. Required keys:
 
 | Variable              | Description                              |
 | --------------------- | ---------------------------------------- |
-| `DATABASE_URL`        | Postgres connection string (Neon/Vercel Postgres) |
+| `DATABASE_URL`        | Supabase transaction-pooler URI (port 6543, `?pgbouncer=true&connection_limit=1`) |
+| `DIRECT_URL`          | Supabase direct/session URI (port 5432) — for `prisma db push` |
 | `SMTP_HOST`           | SMTP server host (email verification)    |
 | `SMTP_PORT`           | SMTP server port                         |
 | `SMTP_USER`           | SMTP username                            |
@@ -91,14 +92,20 @@ See `.env.example`. Required keys:
 The app is serverless-ready: PostgreSQL database, Vercel Blob for PDF
 storage, polling fallback for notifications and build-time SDK config.
 
-1. Create a Postgres database (Vercel Postgres, Neon or Supabase) and run
-   `npx prisma db push` against it once.
-2. Import this repo in Vercel — the build runs
+1. Create a free Supabase project (supabase.com → New project).
+2. Copy both connection strings from Project Settings → Database:
+   - **Transaction pooler** (port 6543) → `DATABASE_URL` — append
+     `?pgbouncer=true&connection_limit=1`
+   - **Direct connection** (port 5432) → `DIRECT_URL`
+3. Push the schema once: `npx prisma db push` with `DIRECT_URL` set.
+4. Import this repo in Vercel — the build runs
    `write-zai-config.mjs && next build` automatically.
-3. Set the environment variables listed above (Vercel injects
-   `BLOB_READ_WRITE_TOKEN` after you create a Blob store).
-4. Add `https://<your-app>.vercel.app/api/auth/google/callback` to the
-   authorized redirect URIs of your Google OAuth client.
+5. Set the environment variables listed above (Vercel injects
+   `BLOB_READ_WRITE_TOKEN` after you create a Blob store; set
+   `NEXT_PUBLIC_DISABLE_SOCKET=1`).
+6. Add `https://<your-app>.vercel.app/api/auth/google/callback` to the
+   authorized redirect URIs of your Google OAuth client and set
+   `GOOGLE_REDIRECT_URI` accordingly.
 
 ## Scripts
 
@@ -108,7 +115,7 @@ storage, polling fallback for notifications and build-time SDK config.
 | `bun run build`     | Production build (standalone)      |
 | `bun run start`     | Start production server            |
 | `bun run lint`      | Run ESLint                         |
-| `bun run db:push`   | Push Prisma schema to SQLite       |
+| `bun run db:push`   | Push Prisma schema to PostgreSQL   |
 | `bun run db:generate` | Generate Prisma client           |
 
 ## Project Structure

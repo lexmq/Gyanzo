@@ -81,3 +81,7 @@ worklog.md
 /examples/
 Caddyfile
 /*.png
+
+# --- local sandbox postgres (dev-only, never pushed) ---
+db/pgdata/
+db/sqlite-export.json

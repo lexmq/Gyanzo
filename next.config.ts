@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
+import { existsSync } from "node:fs";
 
 /* API routes that talk to z-ai-web-dev-sdk. The SDK reads its
    .z-ai-config file from process.cwd() at runtime — on Vercel the file is
-   materialized by scripts/write-zai-config.mjs during the build and then
-   bundled into each of these serverless functions. */
+   materialized by scripts/write-zai-config.mjs during the build (from the
+   ZAI_* env vars) and then bundled into each of these serverless functions.
+   If the ZAI_* vars are not configured, the file doesn't exist and the
+   include list is left empty so the build still succeeds. */
 const ZAI_ROUTES = [
   "/api/chat",
   "/api/summaries",
@@ -20,9 +23,9 @@ const ZAI_ROUTES = [
   "/api/pdfs/[id]/summary",
 ];
 
-const outputFileTracingIncludes = Object.fromEntries(
-  ZAI_ROUTES.map((route) => [route, ["./.z-ai-config"]])
-);
+const outputFileTracingIncludes = existsSync("./.z-ai-config")
+  ? Object.fromEntries(ZAI_ROUTES.map((route) => [route, ["./.z-ai-config"]]))
+  : {};
 
 const nextConfig: NextConfig = {
   output: "standalone",
