@@ -71,3 +71,11 @@ e2e-tabs/
 e2e-profile/
 worklog.md
 *.pid
+
+# --- dev tooling & sandbox infrastructure (kept locally, never pushed) ---
+/.zscripts/
+/scripts/
+/tests/
+/examples/
+Caddyfile
+/*.png
