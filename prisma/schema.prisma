@@ -1,0 +1,355 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  emailVerified DateTime?
+  /// Profile photo as a data URL (client-resized to 256×256 before upload).
+  avatar        String?
+  /// College / University shown on the Profile card (optional).
+  college       String?
+  /// Semester / Year shown on the Profile card (optional).
+  semester      String?
+  /// Google OAuth subject id — present once the account is linked to Google.
+  googleId      String?
+  /// Google account email — set together with googleId at link time.
+  googleEmail   String?
+  /// When the user finished the Profile-Setup onboarding. Null = not yet
+  /// completed — the OAuth callback / sign-in shows the onboarding again.
+  profileCompletedAt DateTime?
+  /// Study goals picked during Profile Setup — JSON array of goal ids
+  /// (exams/learn/grades/research/competitive/revision).
+  goals         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+/// A study subject created from the dashboard. Materials (PDFs, quizzes…)
+/// hang off the subject — scoped to the owner's email.
+model Subject {
+  id        String   @id @default(cuid())
+  userEmail String
+  name      String
+  color     String   @default("emerald")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userEmail])
+}
+
+/// An uploaded study PDF. The binary lives on disk in db/uploads/<storedAs>;
+/// this row carries the metadata the PDF Library shows. Scoped to owner email.
+model Pdf {
+  id          String   @id @default(cuid())
+  userEmail   String
+  name        String
+  subjectName String?
+  size        Int
+  pages       Int      @default(0)
+  status      String   @default("ready")
+  storedAs    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail])
+}
+
+/// One chat turn (user or assistant) in the AI Study Chat, scoped to the
+/// owner's email. subjectId = null means the "No subject selected" scope.
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userEmail String
+  subjectId String?
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userEmail, subjectId])
+}
+
+/// One AI-generated Smart Summary, scoped to the owner's email. `content`
+/// is JSON: { overview: string, sections: [{ heading, bullets: string[] }] }
+model Summary {
+  id            String   @id @default(cuid())
+  userEmail     String
+  subjectId     String?
+  subjectName   String
+  documentLabel String   @default("All documents")
+  length        String
+  title         String
+  content       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One AI-generated topic explanation (Easy Explanation section), scoped
+/// to the owner's email. `content` is JSON:
+/// { intro: string, sections: [{ heading, text }], takeaways: string[] }
+model Explanation {
+  id          String   @id @default(cuid())
+  userEmail   String
+  topic       String
+  subjectId   String?
+  subjectName String
+  style       String
+  title       String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One AI-generated quiz (Quiz section), scoped to the owner's email.
+/// `questions` is JSON:
+/// [{ type: 'mcq'|'truefalse'|'fillblank', question, options?, answer, explanation? }]
+model Quiz {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  difficulty  String
+  types       String
+  title       String
+  questions   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One graded attempt on a generated quiz. `review` is JSON:
+/// [{ type, question, options?, given, answer, correct, explanation? }]
+/// so an attempt can be re-reviewed without loading the parent quiz.
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userEmail   String
+  quizId      String
+  subjectName String
+  difficulty  String
+  total       Int
+  correct     Int
+  scorePct    Int
+  review      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One AI-generated flashcard deck (Flashcards section), scoped to the
+/// owner's email. `cards` is JSON: [{ front: string, back: string }]
+model FlashcardDeck {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  title       String
+  cards       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// Spaced-repetition study progress for one card inside a deck.
+/// cardIdx is the 0-based position in the deck's cards JSON.
+model FlashcardProgress {
+  id        String   @id @default(cuid())
+  deckId    String
+  userEmail String
+  cardIdx   Int
+  known     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([deckId, cardIdx])
+  @@index([userEmail])
+}
+
+/// One AI-generated revision note (Revision Notes section), scoped to
+/// the owner's email. `content` is JSON:
+/// { overview: string, sections: [{ heading, points: [{ text, detail }] }] }
+/// — `detail` carries the model answer for the "Important Questions" mode.
+model RevisionNote {
+  id            String   @id @default(cuid())
+  userEmail     String
+  subjectId     String?
+  subjectName   String
+  documentLabel String   @default("All documents")
+  mode          String
+  title         String
+  content       String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// One AI-generated mind map (Mind Map section), scoped to the owner's
+/// email. `content` is JSON: { root: { title, children: [{ title, children }] } }
+model MindMap {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  topic       String
+  title       String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One formatted bibliography entry generated from an uploaded PDF,
+/// scoped to the owner's email. `fields` is JSON with the extracted
+/// metadata (authors/title/year/venue/...), `text` is the formatted string.
+model Citation {
+  id        String   @id @default(cuid())
+  userEmail String
+  pdfId     String?
+  pdfName   String
+  style     String
+  text      String
+  fields    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One AI-generated vocabulary list (Vocabulary section). `words` is JSON:
+/// [{ term, pos, pronunciation, definition, example }]
+model VocabList {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  count       Int
+  words       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// Known/Learning flag for one word inside a vocabulary list.
+/// wordIdx is the 0-based position in the list's words JSON.
+model VocabProgress {
+  id        String   @id @default(cuid())
+  listId    String
+  userEmail String
+  wordIdx   Int
+  known     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([listId, wordIdx])
+  @@index([userEmail])
+}
+
+/// One AI exam-question prediction run. `predictions` is JSON:
+/// [{ question, likelihood: 'high'|'medium'|'low', topic, answerOutline }]
+model ExamPrediction {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  title       String
+  predictions String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// One AI-extracted formula sheet. `formulas` is JSON:
+/// [{ name, formula, variables: [{ symbol, meaning }], example, topic }]
+model FormulaSheet {
+  id          String   @id @default(cuid())
+  userEmail   String
+  subjectId   String?
+  subjectName String
+  title       String
+  formulas    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userEmail, createdAt])
+}
+
+/// Cached AI page-by-page summary for one uploaded PDF (PDF Library "eye"
+/// dialog). `content` is JSON: [{ page: number, text: string }] — the pages
+/// summarised so far. Progress is persisted after every page so a stopped
+/// run resumes where it left off.
+model PdfSummary {
+  id         String   @id @default(cuid())
+  pdfId      String   @unique
+  userEmail  String
+  pagesDone  Int      @default(0)
+  totalPages Int      @default(0)
+  content    String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userEmail])
+}
+
+/// One-time email verification code for account creation.
+/// A new code (upsert) replaces any previous pending code for the email.
+model EmailVerification {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  code      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+/// A real-time dashboard notification (bell). Rows are created server-side
+/// by the feature routes when something happens for a user (PDF ready,
+/// summary generated, quiz graded, ...) and broadcast instantly over the
+/// notification socket service. `params` is a JSON object used by the
+/// client to render the localized title/description per `type`.
+model Notification {
+  id        String    @id @default(cuid())
+  userEmail String
+  type      String
+  params    String    @default("{}")
+  title     String    @default("")
+  body      String    @default("")
+  actionNav String    @default("")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userEmail, createdAt])
+}
