@@ -48,8 +48,8 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
-prompt
+/test
+/prompt
 
 server.log
 # Skills directory
@@ -63,8 +63,8 @@ db/*.db-journal
 # --- sandbox / agent / e2e artifacts (not part of the app) ---
 tool-results/
 agent-ctx/
-upload/
-download/
+/upload/
+/download/
 e2e-*.png
 e2e-google/
 e2e-shots/
