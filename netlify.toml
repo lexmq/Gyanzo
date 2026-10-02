@@ -1,0 +1,5 @@
+# GOOGLE_CLIENT_ID is a public OAuth identifier (it is sent to the browser in
+# every Google consent URL), so it is safe to exclude from secrets scanning.
+# Real secrets (DATABASE_URL, DIRECT_URL, GOOGLE_CLIENT_SECRET, ...) are still scanned.
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "GOOGLE_CLIENT_ID"
