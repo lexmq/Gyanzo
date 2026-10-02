@@ -96,11 +96,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "bun-types": "^1.3.4",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "smtp-server": "^3.19.16",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
-  }
+  },
+  "trustedDependencies": [
+    "@embedded-postgres/linux-x64"
+  ]
 }
