@@ -77,6 +77,7 @@ worklog.md
 /.zscripts/
 /scripts/*
 !/scripts/write-zai-config.mjs
+!/scripts/dev-watchdog.sh
 /tests/
 /examples/
 Caddyfile

@@ -11,7 +11,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate; bash scripts/dev-watchdog.sh ensure || true"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
