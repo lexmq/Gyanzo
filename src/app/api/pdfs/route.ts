@@ -35,9 +35,15 @@ import busboy from 'busboy';
  * of RAM. Page counting with pdf-lib is a best-effort full parse that is
  * only attempted below PAGE_COUNT_LIMIT bytes — huge PDFs upload fine and
  * simply report 0 pages.
+ *
+ * On Vercel (blob mode) the browser prefers CLIENT-DIRECT uploads
+ * (POST /api/pdfs/upload + /api/pdfs/register) which have no body limit;
+ * this multipart route stays as the fallback, capped at 4 MB to fit the
+ * platform's ~4.5 MB serverless request-body limit.
  */
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Serverless platforms cap request bodies (~4.5 MB); self-hosted disk mode
@@ -63,6 +69,9 @@ export async function GET(request: Request) {
     });
     return NextResponse.json({
       ok: true,
+      /* Tells the client which upload strategy to use: 'blob' →
+         client-direct upload via /api/pdfs/upload, 'disk' → this route. */
+      storage: blobEnabled ? 'blob' : 'disk',
       pdfs: pdfs.map((p) => ({
         id: p.id,
         name: p.name,

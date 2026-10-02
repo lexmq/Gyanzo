@@ -16,6 +16,9 @@ import { Readable } from 'stream';
  */
 
 export const runtime = 'nodejs';
+/* Blob mode proxies the bytes through this function — give slow/large
+   streams room beyond the default duration. */
+export const maxDuration = 60;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UPLOAD_DIR = path.join(process.cwd(), 'db', 'uploads');
@@ -49,7 +52,10 @@ export async function GET(request: Request, ctx: Ctx) {
     /* Vercel Blob backend — fetch the bytes server-side and re-stream them
        so the Blob URL stays hidden and the email check still gates access. */
     if (pdf.blobUrl) {
-      const upstream = await fetch(pdf.blobUrl);
+      const upstream = await fetch(pdf.blobUrl, {
+        /* no-store: stream the bytes through untouched (binary proxy). */
+        cache: 'no-store',
+      });
       if (!upstream.ok || !upstream.body) {
         return NextResponse.json({ ok: false, error: 'notFound' }, { status: 404 });
       }

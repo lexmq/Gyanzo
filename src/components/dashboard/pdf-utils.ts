@@ -14,6 +14,11 @@ export type Pdf = {
 
 export const MAX_PDF_BYTES = 500 * 1024 * 1024; // 500 MB
 
+/** Which storage backend the server reports via GET /api/pdfs:
+ *  'blob' → browser uploads directly to Vercel Blob (no body-size limit),
+ *  'disk' → classic multipart POST /api/pdfs (server writes to disk). */
+export type PdfStorageMode = 'blob' | 'disk';
+
 /** "28.7 MB" / "640 KB" */
 export function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) {

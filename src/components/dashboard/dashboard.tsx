@@ -106,7 +106,11 @@ import ProfileView from '@/components/dashboard/profile-view';
 import SettingsView from '@/components/dashboard/settings-view';
 import { loadPrefs, PREFS_EVENT } from '@/lib/prefs';
 import NotificationBell from '@/components/dashboard/notification-bell';
-import { formatDate, type Pdf } from '@/components/dashboard/pdf-utils';
+import {
+  formatDate,
+  type Pdf,
+  type PdfStorageMode,
+} from '@/components/dashboard/pdf-utils';
 
 export default function Dashboard({
   user,
@@ -155,6 +159,8 @@ export default function Dashboard({
   /* ── PDFs (real data from SQLite) ─────────────────────────── */
   const [pdfs, setPdfs] = useState<Pdf[]>([]);
   const [pdfsLoading, setPdfsLoading] = useState(true);
+  /** Storage backend reported by GET /api/pdfs — picks the upload path. */
+  const [storageMode, setStorageMode] = useState<PdfStorageMode>('disk');
 
   /* ── Quiz attempts (meta only — powers the stat + activity) ── */
   const [quizAttempts, setQuizAttempts] = useState<QuizAttemptSummary[]>([]);
@@ -199,6 +205,7 @@ export default function Dashboard({
       const data = await res.json().catch(() => null);
       if (res.ok && data?.ok) {
         setPdfs(data.pdfs as Pdf[]);
+        setStorageMode(data.storage === 'blob' ? 'blob' : 'disk');
       } else {
         toast({ title: d.pdfLoadFailed, variant: 'destructive' });
       }
@@ -884,6 +891,7 @@ export default function Dashboard({
               subjects={subjects}
               pdfs={pdfs}
               loading={pdfsLoading}
+              storage={storageMode}
               onPdfsChanged={() => void loadPdfs()}
             />
           ) : (

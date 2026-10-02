@@ -42,7 +42,12 @@ export async function loadPdfBytes(pdf: {
   blobUrl?: string | null;
 }): Promise<Buffer> {
   if (pdf.blobUrl) {
-    const res = await fetch(pdf.blobUrl);
+    const res = await fetch(pdf.blobUrl, {
+      /* no-store: these are large binaries consumed on demand — never
+         let the framework's fetch cache buffer them. */
+      cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
+    });
     if (!res.ok) {
       throw new Error(`blob fetch failed (${res.status}) for ${pdf.storedAs}`);
     }

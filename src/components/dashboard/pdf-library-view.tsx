@@ -46,7 +46,9 @@ import {
   formatBytes,
   MAX_PDF_BYTES,
   type Pdf,
+  type PdfStorageMode,
 } from '@/components/dashboard/pdf-utils';
+import { upload as blobUpload } from '@vercel/blob/client';
 import type { Subject } from '@/components/dashboard/subject-styles';
 
 export default function PdfLibraryView({
@@ -54,12 +56,15 @@ export default function PdfLibraryView({
   subjects,
   pdfs,
   loading,
+  storage = 'disk',
   onPdfsChanged,
 }: {
   email: string;
   subjects: Subject[];
   pdfs: Pdf[];
   loading: boolean;
+  /** Server-reported storage backend — picks the upload strategy. */
+  storage?: PdfStorageMode;
   /** Ask the parent to reload the PDF list (after any mutation). */
   onPdfsChanged: () => void;
 }) {
@@ -124,31 +129,79 @@ export default function PdfLibraryView({
     if (uploading) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('email', email);
-      fd.append('file', file);
-      if (uploadSubject !== 'none') fd.append('subject', uploadSubject);
+      const subjectField = uploadSubject === 'none' ? '' : uploadSubject;
 
-      const res = await fetch('/api/pdfs', { method: 'POST', body: fd });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.ok) {
-        setUploadOpen(false);
-        onPdfsChanged();
-        toast({
-          title: d.uploadedToastTitle,
-          description: d.uploadedToastDesc(data.pdf.name as string),
+      if (storage === 'blob') {
+        /* Vercel: upload DIRECTLY from the browser to the Blob store.
+           Bypasses the ~4.5 MB serverless request-body limit entirely, so
+           textbook-sized PDFs (hundreds of MB) work. The row is then
+           registered server-side with ownership verification. */
+        const pathname = `pdfs/${crypto.randomUUID()}.pdf`;
+        const blob = await blobUpload(pathname, file, {
+          access: 'public',
+          handleUploadUrl: '/api/pdfs/upload',
+          clientPayload: JSON.stringify({ email, subject: subjectField }),
         });
+
+        const res = await fetch('/api/pdfs/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            name: file.name,
+            subject: subjectField,
+            url: blob.url,
+            pathname: blob.pathname,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) {
+          setUploadOpen(false);
+          onPdfsChanged();
+          toast({
+            title: d.uploadedToastTitle,
+            description: d.uploadedToastDesc(data.pdf.name as string),
+          });
+        } else {
+          const err = data?.error;
+          toast({
+            title:
+              err === 'tooBig'
+                ? d.uploadErrTooBig
+                : err === 'notPdf'
+                  ? d.uploadErrPdfOnly
+                  : d.pdfLoadFailed,
+            variant: 'destructive',
+          });
+        }
       } else {
-        const err = data?.error;
-        toast({
-          title:
-            err === 'tooBig'
-              ? d.uploadErrTooBig
-              : err === 'notPdf'
-                ? d.uploadErrPdfOnly
-                : d.pdfLoadFailed,
-          variant: 'destructive',
-        });
+        /* Disk mode (sandbox / self-hosted): stream through the API. */
+        const fd = new FormData();
+        fd.append('email', email);
+        fd.append('file', file);
+        if (uploadSubject !== 'none') fd.append('subject', uploadSubject);
+
+        const res = await fetch('/api/pdfs', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.ok) {
+          setUploadOpen(false);
+          onPdfsChanged();
+          toast({
+            title: d.uploadedToastTitle,
+            description: d.uploadedToastDesc(data.pdf.name as string),
+          });
+        } else {
+          const err = data?.error;
+          toast({
+            title:
+              err === 'tooBig'
+                ? d.uploadErrTooBig
+                : err === 'notPdf'
+                  ? d.uploadErrPdfOnly
+                  : d.pdfLoadFailed,
+            variant: 'destructive',
+          });
+        }
       }
     } catch {
       toast({ title: d.pdfLoadFailed, variant: 'destructive' });
