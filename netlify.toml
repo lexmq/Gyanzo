@@ -1,0 +1,4 @@
+[build.environment]
+  # SMTP_HOST is a public mail-provider hostname that also appears in
+  # nodemailer's bundled well-known services list, so it is not a secret.
+  SECRETS_SCAN_OMIT_KEYS = "SMTP_HOST"
