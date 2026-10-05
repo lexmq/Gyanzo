@@ -45,12 +45,15 @@ export async function GET(request: NextRequest) {
     process.env.GOOGLE_REDIRECT_URI?.trim() ||
     `${origin}/api/auth/google/callback`;
 
-  // One-time CSRF token; the base64url origin rides along in the cookie
-  // (NOT in the state Google echoes back) so the callback can rebuild
-  // the identical redirect_uri even when this server sits behind a
-  // public preview proxy it can't know its own public URL of.
-  const state = randomBytes(16).toString('hex');
+  // One-time CSRF token. The base64url origin rides along INSIDE the
+  // state (and mirrors the cookie) because cookies are host-scoped: when
+  // the flow starts on a different origin than the registered
+  // redirect_uri (sandbox preview / localhost → bounce through
+  // GOOGLE_REDIRECT_URI), the callback runs on another host and never
+  // sees this cookie — the state is then the only carrier of the origin.
+  const random = randomBytes(16).toString('hex');
   const originB64 = Buffer.from(origin).toString('base64url');
+  const state = `${random}~${originB64}`;
 
   const consent = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   consent.searchParams.set('client_id', clientId);
@@ -65,7 +68,7 @@ export async function GET(request: NextRequest) {
 
   const res = NextResponse.json({ ok: true, configured: true, url: consent.toString() });
   const isHttps = origin.startsWith('https://');
-  res.cookies.set('g_oauth_state', `${state}~${originB64}`, {
+  res.cookies.set('g_oauth_state', state, {
     httpOnly: true,
     secure: isHttps,
     sameSite: 'lax',
@@ -73,7 +76,7 @@ export async function GET(request: NextRequest) {
     maxAge: 600,
   });
   console.log(
-    `[auth/google/url] consent URL built (redirect_uri=${redirectUri})`
+    `[auth/google/url] consent URL built (redirect_uri=${redirectUri}${redirectUri.includes(origin) ? '' : `, bounce origin=${origin}`})`
   );
   return res;
 }
